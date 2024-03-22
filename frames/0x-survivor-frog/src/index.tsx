@@ -11,16 +11,27 @@ export const app = new Frog({
 
 app.use('/*', serveStatic({ root: './public' }))
 
+const GAMES_CONTRACT = '0xd2135CfB216b74109775236E36d4b433F1DF507B'
+
 // 'eip155:10' is op-mainnet
 /**
  * Check if the user is in a game!
  */
-app.transaction('/getUserPlayableGames', (c) => {
+app.transaction('/getUserGames', (c) => {
   return c.contract({ 
     abi: myAbi, //contract abi
     chainId: 'eip155:10', 
-    functionName: 'getUserPlayableGames', 
-    to: '0xd2135CfB216b74109775236E36d4b433F1DF507B', // contract addr
+    functionName: 'getUserGames', 
+    to: GAMES_CONTRACT, // contract addr
+  }) 
+})
+
+app.transaction('/newGame', (c) => {
+  return c.contract({ 
+    abi: myAbi, //contract abi
+    chainId: 'eip155:10', 
+    functionName: 'newGame', 
+    to: GAMES_CONTRACT, // contract addr
   }) 
 })
 
