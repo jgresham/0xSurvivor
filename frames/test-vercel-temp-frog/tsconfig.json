@@ -4,13 +4,9 @@
     "module": "NodeNext",
     "skipLibCheck": true,
 
-    /* Bundler mode */
     "moduleResolution": "NodeNext",
-    // "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true,
     "jsx": "react-jsx",
     "jsxImportSource": "frog/jsx",
 

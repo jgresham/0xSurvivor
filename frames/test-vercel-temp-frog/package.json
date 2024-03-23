@@ -1,22 +1,18 @@
 {
-  "name": "0x-survivor-frog",
+  "name": "test-vercel-temp-frog",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "frog vercel-build",
     "dev": "frog dev",
-    "deploy": "vercel --prod",
-    "deployDev": "vercel"
+    "deploy": "vercel"
   },
   "dependencies": {
-    "@hono/node-server": "latest",
-    "@neynar/nodejs-sdk": "^1.13.1",
     "frog": "latest",
-    "hono": "^4",
-    "viem": "^2.8.18"
+    "hono": "^4"
   },
   "devDependencies": {
-    "@biomejs/biome": "1.6.2",
+    "tsx": "^4.7.1",
     "typescript": "^5.3.3",
     "vercel": "^32.4.1"
   }

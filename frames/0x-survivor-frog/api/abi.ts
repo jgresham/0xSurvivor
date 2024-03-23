@@ -44,6 +44,26 @@ export const abiGetUserGames = 	{
   stateMutability: "view",
 };
 
+export const abiGetUserGamesInput = 	{
+	"type": "function",
+	"name": "getUserGames",
+	"inputs": [
+	  {
+		"name": "userAddr",
+		"type": "address",
+		"internalType": "address"
+	  }
+	],
+	"outputs": [
+	  {
+		"name": "",
+		"type": "uint256[]",
+		"internalType": "uint256[]"
+	  }
+	],
+	"stateMutability": "view"
+  };
+
 export const abiNewGame = 		{
   type: "function",
   name: "newGame",

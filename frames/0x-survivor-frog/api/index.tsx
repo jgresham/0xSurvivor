@@ -1,10 +1,20 @@
-import { serveStatic } from '@hono/node-server/serve-static'
+import { serveStatic } from 'frog/serve-static'
 import { Button, Frog, TextInput } from 'frog'
 import { devtools } from 'frog/dev'
 import { neynar } from 'frog/hubs'
-import { abiGetUserGames, abiNewGame, abiGamesContract } from './abi'
+import { 
+  abiGetUserGames, 
+  abiNewGame, 
+  abiGamesContract, 
+  abiGetUserGamesInput
+} from './abi.js'
 import { createPublicClient, http } from 'viem'
 import { baseSepolia } from 'viem/chains'
+import { handle } from 'frog/vercel'
+import { NeynarAPIClient } from "@neynar/nodejs-sdk";
+
+// make sure to set your NEYNAR_API_KEY .env
+const client = new NeynarAPIClient('NEYNAR_FROG_FM');
 
 // 2. Set up your client with desired chain & transport.
 const viemClient = createPublicClient({
@@ -12,16 +22,18 @@ const viemClient = createPublicClient({
   transport: http(),
 })
 
-
 export const app = new Frog({
+  assetsPath: '/',
+  basePath: '/api',
+  // browserLocation: '/index.html',
   // Supply a Hub to enable frame verification.
-  hub: neynar({ apiKey: 'NEYNAR_FROG_FM' })
+  hub: neynar({ apiKey: 'NEYNAR_FROG_FM',  })
 })
 
-app.use('/*', serveStatic({ root: './public' }))
+// app.use('/*', serveStatic({ root: './public' }))
 
 // op and base sepolia
-const GAMES_CONTRACT = '0xAeBA2Ac8cd42cD894C4F33eE75e1Cd733De988F1'
+const GAMES_CONTRACT = '0x87Df0b2af684382CCF563E052597309764162766'
 // const GAMES_CONTRACT = '0xAeBA2Ac8cd42cD894C4F33eE75e1Cd733De988F1'
 
 
@@ -34,12 +46,60 @@ const fullChainId = 'eip155:84532'
  * Check if the user is in a game!
  */
 app.transaction('/getUserGames', (c) => {
-  return c.contract({ 
-    abi: [abiGetUserGames], //contract abi
-    chainId: fullChainId, 
-    functionName: 'getUserGames', 
-    to: GAMES_CONTRACT, // contract addr
-  }) 
+  console.log("app.transaction /getUserGames called. c: ", JSON.stringify(c))
+  console.log("app.transaction /getUserGames called for address" + c.address);
+  // return c.contract({ 
+  //   abi: [abiGetUserGames], //contract abi
+  //   chainId: fullChainId, 
+  //   functionName: 'getUserGames', 
+  //   to: GAMES_CONTRACT, // contract addr
+  // })
+  return undefined
+})
+
+app.transaction('/getUserAddressHere', (c) => {
+  console.log("user address: " + c.address);
+  // typically: return c.contract({...})
+  // what to return here if we don't want to call a contract?
+})
+
+app.frame('/userGames', async (c) => {
+  console.log("app.frme /userGames called. c: ", JSON.stringify(c))
+  const { transactionId, frameData } = c
+  const games: number[] = []
+  if(frameData) {
+    // const resp = await client.fetchBulkUsers([frameData.fid])
+    const resp = await client.fetchBulkUsers([710])
+    console.log("fetchBulkUsers resp: ", resp)
+
+    // for each address, get games
+    const users = resp.users
+    if(users && users.length > 0) {
+      const user = users[0]
+      const addresses = user.verified_addresses.eth_addresses;
+      addresses.forEach(async (userAddrN) => {
+
+        const addrGames = await viemClient.readContract({
+          address: GAMES_CONTRACT,
+          abi: [abiGetUserGamesInput],
+          functionName: 'getUserGames',
+          args: [userAddrN]
+        }) as number[];
+        games.push(...addrGames)
+        console.log("user address:  " + userAddrN + " has games: ", addrGames)
+      })
+    }
+  }
+  // const { network } = frameData
+  return c.res({
+    image: (
+      <div style={{ color: 'white', display: 'flex', fontSize: 60 }}>
+       games: {JSON.stringify(games)}
+       frameData: {JSON.stringify(frameData)}
+        {/* Network: {network} */}
+      </div>
+    )
+  })
 })
 
 app.transaction('/newGame', (c) => {
@@ -81,6 +141,7 @@ app.frame('/afterNewGame', (c) => {
 })
 
 app.frame('/', async (c) => {
+  console.log("app.frame / route called. c: ", JSON.stringify(c))
   const { buttonValue, inputText, status, frameData } = c
   // const targetAddress = c.address
   let fid = -1;
@@ -92,6 +153,19 @@ app.frame('/', async (c) => {
   let myGames;
   console.log("root route. buttonValue: ", buttonValue)
   if(buttonValue === "my-games") {
+
+    // const data = await api.validateFrame(, {api_key: 'NEYNAR_FROG_FM'})
+    // console.log("validateFrame Neynar data: ", data);
+    // const result = await client.validateFrame({
+    //   cast_reaction_context: true,
+    //   follow_context: false,
+    //   signer_context: false
+    // })
+    // console.log(result);
+    const viemClient = createPublicClient({
+      chain: baseSepolia,
+      transport: http(),
+    })
     myGames = await viemClient.readContract({
       address: GAMES_CONTRACT,
       abi: abiGamesContract,
@@ -147,9 +221,14 @@ app.frame('/', async (c) => {
     ),
     // action: '/finish',
     intents: [
+      // target (req'd): the app.transaction to call
+      // action (opt): next frame
+
       <Button.Transaction action='/afterNewGame' target="/newGame">New Game</Button.Transaction>,
       // <Button value="new-game">New Game</Button>,
       <Button value="my-games">My Games</Button>,
+      // <Button.Transaction action='/userGames' target='/getUserGames'>User Games</Button.Transaction>,
+      <Button action='/userGames' >User Games</Button>,
       // <Button value="website">Website</Button>,
       // <TextInput placeholder="Enter a Farcaster username" />,
       // <TextInput placeholder="Enter your fruit..." />,
@@ -164,4 +243,17 @@ app.frame('/', async (c) => {
   })
 })
 
-devtools(app, { serveStatic })
+// @ts-ignore
+const isEdgeFunction = typeof EdgeFunction !== 'undefined'
+// @ts-ignore
+const isProduction = isEdgeFunction || import.meta.env?.MODE !== 'development'
+devtools(app, isProduction ? { assetsPath: '/.frog' } : { serveStatic })
+// if (process.env.NODE_ENV === 'development') {
+//   devtools(app, { serveStatic })
+// } else {
+//   devtools(app, { assetsPath: '/.frog' }) 
+// }
+
+
+export const GET = handle(app)
+export const POST = handle(app)

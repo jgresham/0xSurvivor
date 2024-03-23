@@ -23,4 +23,8 @@ contract Games {
     function getUserGames() public view returns (uint256[] memory) {
         return playerAddressToGamesMapping[msg.sender];
     }
+
+    function getUserGames(address userAddr) public view returns (uint256[] memory) {
+        return playerAddressToGamesMapping[userAddr];
+    }
 }
