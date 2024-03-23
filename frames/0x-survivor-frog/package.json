@@ -8,7 +8,8 @@
   "dependencies": {
     "@hono/node-server": "latest",
     "frog": "latest",
-    "hono": "^4"
+    "hono": "^4",
+    "viem": "^2.8.18"
   },
   "devDependencies": {
     "@biomejs/biome": "1.6.2",

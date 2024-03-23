@@ -2,7 +2,16 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { Button, Frog, TextInput } from 'frog'
 import { devtools } from 'frog/dev'
 import { neynar } from 'frog/hubs'
-import { abiGetUserGames, abiNewGame, abiTestDeployment1 as myAbi } from './abi'
+import { abiGetUserGames, abiNewGame, abiGamesContract } from './abi'
+import { createPublicClient, http } from 'viem'
+import { baseSepolia } from 'viem/chains'
+
+// 2. Set up your client with desired chain & transport.
+const viemClient = createPublicClient({
+  chain: baseSepolia,
+  transport: http(),
+})
+
 
 export const app = new Frog({
   // Supply a Hub to enable frame verification.
@@ -11,16 +20,23 @@ export const app = new Frog({
 
 app.use('/*', serveStatic({ root: './public' }))
 
+// op and base sepolia
 const GAMES_CONTRACT = '0xAeBA2Ac8cd42cD894C4F33eE75e1Cd733De988F1'
+// const GAMES_CONTRACT = '0xAeBA2Ac8cd42cD894C4F33eE75e1Cd733De988F1'
 
-// 'eip155:10' is op-mainnet
+
+// '10' is op-mainnet
+// 8453 is base-mainnet
+// 84532 is base sepolia
+// 7777777 is zora-mainnet
+const fullChainId = 'eip155:84532'
 /**
  * Check if the user is in a game!
  */
 app.transaction('/getUserGames', (c) => {
   return c.contract({ 
     abi: [abiGetUserGames], //contract abi
-    chainId: 'eip155:10', 
+    chainId: fullChainId, 
     functionName: 'getUserGames', 
     to: GAMES_CONTRACT, // contract addr
   }) 
@@ -30,7 +46,7 @@ app.transaction('/newGame', (c) => {
   console.log("app.transaction('/newGame'")
   return c.contract({ 
     abi: [abiNewGame], //contract abi
-    chainId: 'eip155:10', 
+    chainId: fullChainId, 
     functionName: 'newGame',
     to: GAMES_CONTRACT, // contract addr
   }) 
@@ -50,7 +66,21 @@ app.frame('/afterNewGame', (c) => {
   })
 })
 
-app.frame('/', (c) => {
+app.frame('/afterNewGame', (c) => {
+  const { transactionId, frameData } = c
+  // const { network } = frameData
+  return c.res({
+    image: (
+      <div style={{ color: 'white', display: 'flex', fontSize: 60 }}>
+        New Game! Invite people to play!
+        Transaction ID: {transactionId}
+        {/* Network: {network} */}
+      </div>
+    )
+  })
+})
+
+app.frame('/', async (c) => {
   const { buttonValue, inputText, status, frameData } = c
   // const targetAddress = c.address
   let fid = -1;
@@ -58,6 +88,16 @@ app.frame('/', (c) => {
   if(frameData) {
     fid = frameData.fid
     network = frameData.network
+  }
+  let myGames;
+  console.log("root route. buttonValue: ", buttonValue)
+  if(buttonValue === "my-games") {
+    myGames = await viemClient.readContract({
+      address: GAMES_CONTRACT,
+      abi: abiGamesContract,
+      functionName: 'getUserGames',
+    })
+    console.log("myGames: ", myGames)
   }
   // const fruit = inputText || buttonValue
   return c.res({
@@ -92,8 +132,12 @@ app.frame('/', (c) => {
             display: 'flex'
           }}
         >
-          { 'farcaster user id (fid): ' + fid }
-          { 'network: ' + network }
+          { buttonValue === undefined && (<>          { 'farcaster user id (fid): ' + fid }
+          { 'network: ' + network }</>)}
+
+          { buttonValue === 'my-games' && ( <>
+            { (!myGames || myGames.length < 1) ? <>No games yet!</> : 'My Games: ' + myGames }
+          </>)}
           {/* { 'targetAddress?: ' + targetAddress } */}
           {/* {status === 'response'
             ? `Nice choice.${fruit ? ` ${fruit.toUpperCase()}!!` : ''}`
@@ -106,7 +150,7 @@ app.frame('/', (c) => {
       <Button.Transaction action='/afterNewGame' target="/newGame">New Game</Button.Transaction>,
       // <Button value="new-game">New Game</Button>,
       <Button value="my-games">My Games</Button>,
-      <Button value="website">Website</Button>,
+      // <Button value="website">Website</Button>,
       // <TextInput placeholder="Enter a Farcaster username" />,
       // <TextInput placeholder="Enter your fruit..." />,
       // <Button placeholder="Enter your fruit2..." />,

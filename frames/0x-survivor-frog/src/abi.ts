@@ -52,7 +52,7 @@ export const abiNewGame = 		{
   stateMutability: "nonpayable",
 }
 
-export const abiTestDeployment1 = [
+export const abiGamesContract = [
 	{ type: "constructor", inputs: [], stateMutability: "nonpayable" },
 	{
 		type: "function",

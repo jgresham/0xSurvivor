@@ -37,4 +37,27 @@ contract GamesTest is Test {
         uint256 nextGameId = games.nextGameId();
         assertEq(nextGameId, 2);
     }
+
+    function test_createGameWithTwoAddresses() public {
+        address[] memory playerAddresses = new address[](2);
+        address addr1 = address(0x123);
+        address addr2 = address(0x456);
+        playerAddresses[0] = addr1;
+        playerAddresses[1] = addr2;
+
+        vm.prank(addr1);
+        uint256 gameId0 = games.newGame();
+        assert(gameId0 == 0);
+
+        vm.prank(addr2);
+        uint256 gameId1 = games.newGame();
+        assert(gameId1 == 1);
+        vm.prank(addr2);
+        uint256[] memory usersGames2 = games.getUserGames();
+        assertEq(usersGames2[0], 1);
+
+        vm.prank(addr1);
+        uint256[] memory usersGames1 = games.getUserGames();
+        assertEq(usersGames1[0], 0);
+    }
 }
