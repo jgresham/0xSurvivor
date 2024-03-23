@@ -6,7 +6,11 @@ pragma solidity ^0.8.24;
 contract Games {
     // every player in a game should have the game added to their games
     mapping(address => uint256[]) public playerAddressToGamesMapping;
-    uint256 public nextGameId = 0; 
+    uint256 public nextGameId; 
+
+    constructor () {
+        nextGameId = 0;
+    }
 
     // todo: players
     function newGame() public returns (uint256){

@@ -11,6 +11,7 @@
     "hono": "^4"
   },
   "devDependencies": {
+    "@biomejs/biome": "1.6.2",
     "typescript": "latest"
   }
 }
