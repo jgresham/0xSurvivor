@@ -1,6 +1,8 @@
 # 0xSurvivor
 an onchain round-based, elimination by voting, survivor game playable in a frame
 
+<img width="542" alt="Screenshot 2024-03-24 at 3 03 27 AM" src="https://github.com/jgresham/0xSurvivor/assets/3721291/da7bce8a-ecc6-437c-884b-82f899765285">
+
 ## Description
 A group of Farcaster users are invited to a survival game. Instead of surviving the elements, players try to survive elimination from other players in a round-voting-based elimination game.
 
