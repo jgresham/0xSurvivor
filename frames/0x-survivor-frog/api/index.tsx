@@ -6,12 +6,14 @@ import {
   abiGetUserGames, 
   abiNewGame, 
   abiGamesContract, 
-  abiGetUserGamesInput
+  abiGetUserGamesInput,
+  abiGame
 } from './abi.js'
 import { createPublicClient, http } from 'viem'
 import { baseSepolia } from 'viem/chains'
 import { handle } from 'frog/vercel'
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
+import { Player } from './player.js'
 
 // make sure to set your NEYNAR_API_KEY .env
 const neynarClient = new NeynarAPIClient('NEYNAR_FROG_FM');
@@ -33,8 +35,7 @@ export const app = new Frog({
 // app.use('/*', serveStatic({ root: './public' }))
 
 // op and base sepolia
-const GAMES_CONTRACT = '0x87Df0b2af684382CCF563E052597309764162766'
-// const GAMES_CONTRACT = '0xAeBA2Ac8cd42cD894C4F33eE75e1Cd733De988F1'
+const GAMES_CONTRACT = '0xdB985150e020909Ba731430ADFcBADd7bd2490A0'
 
 
 // '10' is op-mainnet
@@ -56,17 +57,15 @@ app.frame('/userGames', async (c) => {
     const users = resp.users
     if(users && users.length > 0) {
       const user = users[0]
-      const addresses = user.verified_addresses.eth_addresses;
-      for (const userAddrN of addresses) {
+      // const addresses = user.verified_addresses.eth_addresses;
         const addrGames = await viemClient.readContract({
           address: GAMES_CONTRACT,
           abi: [abiGetUserGamesInput],
           functionName: 'getUserGames',
-          args: [userAddrN]
+          args: [user.fid]
         }) as BigInt[];
         games.push(...addrGames)
-        console.log("user address:  " + userAddrN + " has games: ", addrGames, " games: ", games)
-      }
+        console.log("user fid:  " + user.fid + " has games: ", addrGames, " games: ", games)
     }
   }
   const gamesStr = games.map((game) => '#' + game.toString());
@@ -75,8 +74,9 @@ app.frame('/userGames', async (c) => {
   // const { network } = frameData
   return c.res({
     image: (
-      <div style={{ color: 'white', display: 'flex', fontSize: 60 }}>
-       <p> {'games: ' + gamesStrJoin}</p>
+      <div style={{ color: 'white', display: 'flex', flexDirection: 'column', fontSize: 60 }}>
+        <p> {games.length + " Total Games"}</p>
+       <p> {'game numbers: ' + gamesStrJoin}</p>
        {/* <p>frameData: {JSON.stringify(frameData)}</p> */}
         {/* Network: {network} */}
       </div>
@@ -84,14 +84,15 @@ app.frame('/userGames', async (c) => {
     intents: [
       // target (req'd): the app.transaction to call
       // action (opt): next frame
-      <Button.Transaction action='/afterNewGame' target="/newGame">New Game</Button.Transaction>,
+      <Button action='/newGame'>New Game</Button>,
       <Button action='/game' >Join Game</Button>,
-      <TextInput placeholder="Join a game. Enter game # and Join Game" />,
+      <TextInput placeholder="Enter game # and Join Game" />,
       <Button.Reset>Back</Button.Reset>,
     ],
   })
 })
 
+// not being used?
 app.frame('/newGame', async (c) => {
   console.log("app.frame /newGame called. c: ", JSON.stringify(c))
   return c.res({
@@ -106,7 +107,7 @@ app.frame('/newGame', async (c) => {
       // target (req'd): the app.transaction to call
       // action (opt): next frame
       <Button.Transaction action='/newGameCreatedNotStarted' target="/tCreateGameAndInvitePlayers">Invite Players</Button.Transaction>,
-      <Button.Transaction action='/game' target="/startGame">Start game</Button.Transaction>,
+      // <Button.Transaction action='/game' target="/startGame">Start game</Button.Transaction>,
       <TextInput placeholder="Farcaster name(s)" />,
       <Button.Reset>Back</Button.Reset>,
     ],
@@ -158,7 +159,87 @@ app.frame('/newGameCreatedNotStarted', async (c) => {
       // target (req'd): the app.transaction to call
       // action (opt): next frame
       <Button.Transaction action='/game' target="/createGameAndInvitePlayers">Invite Players</Button.Transaction>,
-      <Button.Transaction action='/game' target="/startGame">Start game</Button.Transaction>,
+      // <Button.Transaction action='/game' target="/startGame">Start game</Button.Transaction>,
+      <TextInput placeholder="Farcaster name(s)" />,
+      <Button.Reset>Back</Button.Reset>,
+    ],
+  })
+})
+
+// const viemClient = createPublicClient({
+//   chain: baseSepolia,
+//   transport: http(),
+// })
+
+
+app.frame('/game', async (c) => {
+  console.log("app.frame /newGameCreatedNotStarted called. c: ", JSON.stringify(c))
+  // todo: get contract data of the players invited, game id, etc
+  // can use txn id here?
+  const { transactionId, frameData, inputText } = c
+  // todo: Join Game from inputText or txnId or newGameId?
+  if(inputText !== undefined) {
+    const gameId = 0;
+    // get game data from viem
+    // get fnames for players
+    // show players and status
+    const gameContract = await viemClient.readContract({
+      address: GAMES_CONTRACT,
+      abi: abiGamesContract,
+      functionName: 'gameIdToGameContract',
+      args: [gameId]
+    })
+    console.log("gameContract`, ", gameContract)
+    const playersContractData = await viemClient.readContract({
+      address: gameContract,
+      abi: abiGame,
+      functionName: 'getPlayers',
+      args: [gameId]
+    })
+    console.log("playersContractData`, ", playersContractData)
+  }
+
+  const games: BigInt[] = []
+  if(frameData) {
+    // const resp = await client.fetchBulkUsers([frameData.fid])
+    const resp = await neynarClient.fetchBulkUsers([710])
+    console.log("fetchBulkUsers resp: ", resp)
+
+    // for each address, get games
+    const users = resp.users
+    if(users && users.length > 0) {
+      const user = users[0]
+      const addresses = user.verified_addresses.eth_addresses;
+      for (const userAddrN of addresses) {
+        const addrGames = await viemClient.readContract({
+          address: GAMES_CONTRACT,
+          abi: [abiGetUserGamesInput],
+          functionName: 'getUserGames',
+          args: [userAddrN]
+        }) as BigInt[];
+        games.push(...addrGames)
+        console.log("user address:  " + userAddrN + " has games: ", addrGames, " games: ", games)
+      }
+    }
+  }
+  const gamesStr = games.map((game) => '#' + game.toString());
+  const gamesStrJoin = gamesStr.join(", ")
+  console.log(gamesStr, gamesStrJoin)
+
+  let invitedPlayersStrJoin = 'none'
+  return c.res({
+    image: (
+      <div style={{ color: 'white', display: 'flex', flexDirection: 'column', fontSize: 45 }}>
+       <p>{'Invited players: ' + invitedPlayersStrJoin}</p>
+       <p>Make sure players are on Warpcast and ready to play by Joining Game with this frame!</p>
+       <caption>Max is 64 characters in a frame text input</caption>
+      </div>
+    ),
+    intents: [
+      // target (req'd): the app.transaction to call
+      // action (opt): next frame
+      <Button.Transaction action='/game' target="/createGameAndInvitePlayers">Invite Players</Button.Transaction>,
+      // <Button.Transaction action='/game' target="/startGame">Start game</Button.Transaction>,
       <TextInput placeholder="Farcaster name(s)" />,
       <Button.Reset>Back</Button.Reset>,
     ],
@@ -182,10 +263,10 @@ app.transaction('/tCreateGameAndInvitePlayers', async (c) => {
     throw new Error("No input text provided")
   }
 
-  let viewerFid = -1;
+  let viewerFid: BigInt = BigInt(-1);
   if(frameData) {
     if(frameData.fid) {
-      viewerFid = frameData.fid
+      viewerFid = BigInt(frameData.fid)
     }
   }
   // Remove whitespace using regular expression
@@ -193,10 +274,11 @@ app.transaction('/tCreateGameAndInvitePlayers', async (c) => {
   const fnames = inputWithoutWhitespace.split(',')
   // todo: use neynar apis to lookup each fname, get verified_addresses, and add to game constructor
   // game constructor should return the game id
+  const players: Player[] = []
 
   // Form the player list input to the game constructor
   for ( const fname of fnames ) {
-    const resp = await neynarClient.searchUser(fname, viewerFid);
+    const resp = await neynarClient.searchUser(fname, Number(viewerFid));
     console.log("searchUser resp: ", resp)
     if(resp.result.users && resp.result.users.length > 0) {
       const user = resp.result.users[0];
@@ -204,6 +286,13 @@ app.transaction('/tCreateGameAndInvitePlayers', async (c) => {
         console.log("fname found: " + fname)
         const addresses = user.verified_addresses.eth_addresses;
         console.log("user: ", user, " addresses: ", addresses)
+
+        players.push({
+          fid: BigInt(user.fid),
+          addresses: addresses,
+          isRemoved: false,
+          currentVotedPlayerToRemove: BigInt(0)
+        } as Player)
       }
     }
   }
@@ -214,7 +303,7 @@ app.transaction('/tCreateGameAndInvitePlayers', async (c) => {
     chainId: fullChainId, 
     functionName: 'newGame',
     to: GAMES_CONTRACT, // contract addr
-    inputs: []
+    args: [viewerFid, players]
   }) 
 })
 
@@ -262,6 +351,7 @@ app.frame('/', async (c) => {
               ? 'linear-gradient(to right, #432889, #17101F)'
               : 'black',
           backgroundSize: '100% 100%',
+          backgroundImage: 'url(https://i.imgur.com/PwiRX5K.jpeg)',
           display: 'flex',
           flexDirection: 'column',
           flexWrap: 'nowrap',
@@ -281,27 +371,17 @@ app.frame('/', async (c) => {
             marginTop: 30,
             padding: '0 120px',
             whiteSpace: 'pre-wrap',
-            display: 'flex'
+            display: 'flex',
+            textShadow: '0 0 20px rgba(0, 0, 0, 0.5)',
           }}
         >
-          { buttonValue === undefined && (<>          { 'farcaster user id (fid): ' + fid }
-          { 'network: ' + network }</>)}
-
-          { buttonValue === 'my-games' && ( <>
-            { (!myGames || myGames.length < 1) ? <>No games yet!</> : 'My Games: ' + myGames }
-          </>)}
-          {/* { 'targetAddress?: ' + targetAddress } */}
-          {/* {status === 'response'
-            ? `Nice choice.${fruit ? ` ${fruit.toUpperCase()}!!` : ''}`
-            : 'Welcome!'} */}
+          <h1>0xSurvivor</h1>
         </div>
       </div>
     ),
-    // action: '/finish',
     intents: [
       // target (req'd): the app.transaction to call
       // action (opt): next frame
-
       <Button action='/newGame' >New Game</Button>,
       <Button action='/userGames' >My Games</Button>,
       status === 'response' && <Button.Reset>Reset</Button.Reset>,

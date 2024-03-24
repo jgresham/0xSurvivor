@@ -38,4 +38,8 @@ contract Games {
     function getUserGames(uint256 userFid) public view returns (uint256[] memory) {
         return fidToGamesMapping[userFid];
     }
+
+    function gameIdToGameContract(uint256 gameId) public view returns (address) {
+        return gameIdToGamesMapping[gameId];
+    }
 }
