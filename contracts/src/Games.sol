@@ -1,30 +1,41 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.24;
 
-// gameId is a uint32
+import "./Player.sol";
+import "./Game.sol";
 
 contract Games {
-    // every player in a game should have the game added to their games
-    mapping(address => uint256[]) public playerAddressToGamesMapping;
-    uint256 public nextGameId; 
+    /** all games a fid has created or been invited to */
+    mapping(uint256 => uint256[]) public fidToGamesMapping;
+    uint256 public nextGameId;
+    mapping(uint256 => address) public gameIdToGamesMapping;
+
 
     constructor () {
         nextGameId = 0;
     }
 
-    // todo: players
-    function newGame() public returns (uint256){
+    /**
+    * @dev Create a new game
+    * @param fidGameCreator fid of the game creator
+    * @param _players players in the game (should include the creator if the creator is playing the game)
+    * @return gameId of the new game
+    */
+    function newGame(uint256 fidGameCreator, Player[] memory _players) public returns (uint256){
+        // todo: check _players length min and max
         uint256 gameId = nextGameId;
-        playerAddressToGamesMapping[msg.sender].push(gameId);
+        Game game = new Game(gameId, fidGameCreator, _players);
+        gameIdToGamesMapping[gameId] = address(game);
+
+        // add game to all players' fidToGamesMapping
+        for(uint i = 0; i < _players.length; i++) {
+            fidToGamesMapping[_players[i].fid].push(gameId);
+        }
         nextGameId++;
         return gameId;
     }
 
-    function getUserGames() public view returns (uint256[] memory) {
-        return playerAddressToGamesMapping[msg.sender];
-    }
-
-    function getUserGames(address userAddr) public view returns (uint256[] memory) {
-        return playerAddressToGamesMapping[userAddr];
+    function getUserGames(uint256 userFid) public view returns (uint256[] memory) {
+        return fidToGamesMapping[userFid];
     }
 }

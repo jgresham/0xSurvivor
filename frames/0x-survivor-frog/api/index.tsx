@@ -14,7 +14,7 @@ import { handle } from 'frog/vercel'
 import { NeynarAPIClient } from "@neynar/nodejs-sdk";
 
 // make sure to set your NEYNAR_API_KEY .env
-const client = new NeynarAPIClient('NEYNAR_FROG_FM');
+const neynarClient = new NeynarAPIClient('NEYNAR_FROG_FM');
 
 // 2. Set up your client with desired chain & transport.
 const viemClient = createPublicClient({
@@ -42,34 +42,14 @@ const GAMES_CONTRACT = '0x87Df0b2af684382CCF563E052597309764162766'
 // 84532 is base sepolia
 // 7777777 is zora-mainnet
 const fullChainId = 'eip155:84532'
-/**
- * Check if the user is in a game!
- */
-app.transaction('/getUserGames', (c) => {
-  console.log("app.transaction /getUserGames called. c: ", JSON.stringify(c))
-  console.log("app.transaction /getUserGames called for address" + c.address);
-  // return c.contract({ 
-  //   abi: [abiGetUserGames], //contract abi
-  //   chainId: fullChainId, 
-  //   functionName: 'getUserGames', 
-  //   to: GAMES_CONTRACT, // contract addr
-  // })
-  return undefined
-})
-
-app.transaction('/getUserAddressHere', (c) => {
-  console.log("user address: " + c.address);
-  // typically: return c.contract({...})
-  // what to return here if we don't want to call a contract?
-})
 
 app.frame('/userGames', async (c) => {
-  console.log("app.frme /userGames called. c: ", JSON.stringify(c))
-  const { transactionId, frameData } = c
+  console.log("app.frame /userGames called. c: ", JSON.stringify(c))
+  const { frameData } = c
   const games: BigInt[] = []
   if(frameData) {
     // const resp = await client.fetchBulkUsers([frameData.fid])
-    const resp = await client.fetchBulkUsers([710])
+    const resp = await neynarClient.fetchBulkUsers([710])
     console.log("fetchBulkUsers resp: ", resp)
 
     // for each address, get games
@@ -112,42 +92,130 @@ app.frame('/userGames', async (c) => {
   })
 })
 
-app.transaction('/newGame', (c) => {
-  console.log("app.transaction('/newGame'")
+app.frame('/newGame', async (c) => {
+  console.log("app.frame /newGame called. c: ", JSON.stringify(c))
+  return c.res({
+    image: (
+      <div style={{ color: 'white', display: 'flex', flexDirection: 'column', fontSize: 45 }}>
+       <p>Enter one or more comma separated Farcaster usernames. Example: dwr.eth, vitalik.eth, v</p>
+       <p>Make sure players are on Warpcast and ready to play by Joining Game with this frame!</p>
+       <caption>Max is 64 characters in a frame text input</caption>
+      </div>
+    ),
+    intents: [
+      // target (req'd): the app.transaction to call
+      // action (opt): next frame
+      <Button.Transaction action='/newGameCreatedNotStarted' target="/tCreateGameAndInvitePlayers">Invite Players</Button.Transaction>,
+      <Button.Transaction action='/game' target="/startGame">Start game</Button.Transaction>,
+      <TextInput placeholder="Farcaster name(s)" />,
+      <Button.Reset>Back</Button.Reset>,
+    ],
+  })
+})
+
+app.frame('/newGameCreatedNotStarted', async (c) => {
+  console.log("app.frame /newGameCreatedNotStarted called. c: ", JSON.stringify(c))
+  // todo: get contract data of the players invited, game id, etc
+  // can use txn id here?
+  const { transactionId, frameData } = c
+  const games: BigInt[] = []
+  if(frameData) {
+    // const resp = await client.fetchBulkUsers([frameData.fid])
+    const resp = await neynarClient.fetchBulkUsers([710])
+    console.log("fetchBulkUsers resp: ", resp)
+
+    // for each address, get games
+    const users = resp.users
+    if(users && users.length > 0) {
+      const user = users[0]
+      const addresses = user.verified_addresses.eth_addresses;
+      for (const userAddrN of addresses) {
+        const addrGames = await viemClient.readContract({
+          address: GAMES_CONTRACT,
+          abi: [abiGetUserGamesInput],
+          functionName: 'getUserGames',
+          args: [userAddrN]
+        }) as BigInt[];
+        games.push(...addrGames)
+        console.log("user address:  " + userAddrN + " has games: ", addrGames, " games: ", games)
+      }
+    }
+  }
+  const gamesStr = games.map((game) => '#' + game.toString());
+  const gamesStrJoin = gamesStr.join(", ")
+  console.log(gamesStr, gamesStrJoin)
+
+  let invitedPlayersStrJoin = 'none'
+  return c.res({
+    image: (
+      <div style={{ color: 'white', display: 'flex', flexDirection: 'column', fontSize: 45 }}>
+       <p>{'Invited players: ' + invitedPlayersStrJoin}</p>
+       <p>Make sure players are on Warpcast and ready to play by Joining Game with this frame!</p>
+       <caption>Max is 64 characters in a frame text input</caption>
+      </div>
+    ),
+    intents: [
+      // target (req'd): the app.transaction to call
+      // action (opt): next frame
+      <Button.Transaction action='/game' target="/createGameAndInvitePlayers">Invite Players</Button.Transaction>,
+      <Button.Transaction action='/game' target="/startGame">Start game</Button.Transaction>,
+      <TextInput placeholder="Farcaster name(s)" />,
+      <Button.Reset>Back</Button.Reset>,
+    ],
+  })
+})
+
+// app.transaction('/newGame', (c) => {
+//   console.log("app.transaction('/newGame'")
+//   return c.contract({ 
+//     abi: [abiNewGame], //contract abi
+//     chainId: fullChainId, 
+//     functionName: 'newGame',
+//     to: GAMES_CONTRACT, // contract addr
+//   }) 
+// })
+
+app.transaction('/tCreateGameAndInvitePlayers', async (c) => {
+  console.log("app.transaction /tCreateGameAndInvitePlayers called. c: ", JSON.stringify(c))
+  const { frameData, inputText } = c;
+  if(!inputText) {
+    throw new Error("No input text provided")
+  }
+
+  let viewerFid = -1;
+  if(frameData) {
+    if(frameData.fid) {
+      viewerFid = frameData.fid
+    }
+  }
+  // Remove whitespace using regular expression
+  const inputWithoutWhitespace = inputText.replace(/\s/g, '');
+  const fnames = inputWithoutWhitespace.split(',')
+  // todo: use neynar apis to lookup each fname, get verified_addresses, and add to game constructor
+  // game constructor should return the game id
+
+  // Form the player list input to the game constructor
+  for ( const fname of fnames ) {
+    const resp = await neynarClient.searchUser(fname, viewerFid);
+    console.log("searchUser resp: ", resp)
+    if(resp.result.users && resp.result.users.length > 0) {
+      const user = resp.result.users[0];
+      if(user.username === fname) { 
+        console.log("fname found: " + fname)
+        const addresses = user.verified_addresses.eth_addresses;
+        console.log("user: ", user, " addresses: ", addresses)
+      }
+    }
+  }
+
+
   return c.contract({ 
     abi: [abiNewGame], //contract abi
     chainId: fullChainId, 
     functionName: 'newGame',
     to: GAMES_CONTRACT, // contract addr
+    inputs: []
   }) 
-})
-
-app.frame('/afterNewGame', (c) => {
-  const { transactionId, frameData } = c
-  // const { network } = frameData
-  return c.res({
-    image: (
-      <div style={{ color: 'white', display: 'flex', fontSize: 60 }}>
-        New Game! Invite people to play!
-        Transaction ID: {transactionId}
-        {/* Network: {network} */}
-      </div>
-    )
-  })
-})
-
-app.frame('/afterNewGame', (c) => {
-  const { transactionId, frameData } = c
-  // const { network } = frameData
-  return c.res({
-    image: (
-      <div style={{ color: 'white', display: 'flex', fontSize: 60 }}>
-        New Game! Invite people to play!
-        Transaction ID: {transactionId}
-        {/* Network: {network} */}
-      </div>
-    )
-  })
 })
 
 app.frame('/', async (c) => {
@@ -234,20 +302,8 @@ app.frame('/', async (c) => {
       // target (req'd): the app.transaction to call
       // action (opt): next frame
 
-      <Button.Transaction action='/afterNewGame' target="/newGame">New Game</Button.Transaction>,
-      // <Button value="new-game">New Game</Button>,
-      // <Button value="my-games">My Games</Button>,
-      // <Button.Transaction action='/userGames' target='/getUserGames'>User Games</Button.Transaction>,
-      <Button action='/userGames' >User Games</Button>,
-      // <Button value="website">Website</Button>,
-      // <TextInput placeholder="Enter a Farcaster username" />,
-      // <TextInput placeholder="Enter your fruit..." />,
-      // <Button placeholder="Enter your fruit2..." />,
-      // <TextInput placeholder="Enter your fruit..." />,
-
-      // <Button.Transaction target="/getUserGames">Show my games</Button.Transaction>,
-      // <Button value="add-player">Add player</Button>,
-      // <Button value="start-game">Start Game</Button>,
+      <Button action='/newGame' >New Game</Button>,
+      <Button action='/userGames' >My Games</Button>,
       status === 'response' && <Button.Reset>Reset</Button.Reset>,
     ],
   })
