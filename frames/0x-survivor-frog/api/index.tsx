@@ -92,7 +92,6 @@ app.frame('/userGames', async (c) => {
   })
 })
 
-// not being used?
 app.frame('/newGame', async (c) => {
   console.log("app.frame /newGame called. c: ", JSON.stringify(c))
   return c.res({
@@ -114,66 +113,8 @@ app.frame('/newGame', async (c) => {
   })
 })
 
-app.frame('/newGameCreatedNotStarted', async (c) => {
-  console.log("app.frame /newGameCreatedNotStarted called. c: ", JSON.stringify(c))
-  // todo: get contract data of the players invited, game id, etc
-  // can use txn id here?
-  const { transactionId, frameData } = c
-  const games: BigInt[] = []
-  if(frameData) {
-    // const resp = await client.fetchBulkUsers([frameData.fid])
-    const resp = await neynarClient.fetchBulkUsers([710])
-    console.log("fetchBulkUsers resp: ", resp)
-
-    // for each address, get games
-    const users = resp.users
-    if(users && users.length > 0) {
-      const user = users[0]
-      const addresses = user.verified_addresses.eth_addresses;
-      for (const userAddrN of addresses) {
-        const addrGames = await viemClient.readContract({
-          address: GAMES_CONTRACT,
-          abi: [abiGetUserGamesInput],
-          functionName: 'getUserGames',
-          args: [userAddrN]
-        }) as BigInt[];
-        games.push(...addrGames)
-        console.log("user address:  " + userAddrN + " has games: ", addrGames, " games: ", games)
-      }
-    }
-  }
-  const gamesStr = games.map((game) => '#' + game.toString());
-  const gamesStrJoin = gamesStr.join(", ")
-  console.log(gamesStr, gamesStrJoin)
-
-  let invitedPlayersStrJoin = 'none'
-  return c.res({
-    image: (
-      <div style={{ color: 'white', display: 'flex', flexDirection: 'column', fontSize: 45 }}>
-       <p>{'Invited players: ' + invitedPlayersStrJoin}</p>
-       <p>Make sure players are on Warpcast and ready to play by Joining Game with this frame!</p>
-       <caption>Max is 64 characters in a frame text input</caption>
-      </div>
-    ),
-    intents: [
-      // target (req'd): the app.transaction to call
-      // action (opt): next frame
-      <Button.Transaction action='/game' target="/createGameAndInvitePlayers">Invite Players</Button.Transaction>,
-      // <Button.Transaction action='/game' target="/startGame">Start game</Button.Transaction>,
-      <TextInput placeholder="Farcaster name(s)" />,
-      <Button.Reset>Back</Button.Reset>,
-    ],
-  })
-})
-
-// const viemClient = createPublicClient({
-//   chain: baseSepolia,
-//   transport: http(),
-// })
-
-
 app.frame('/game', async (c) => {
-  console.log("app.frame /newGameCreatedNotStarted called. c: ", JSON.stringify(c))
+  console.log("app.frame /game called. c: ", JSON.stringify(c))
   // todo: get contract data of the players invited, game id, etc
   // can use txn id here?
   const { transactionId, frameData, inputText } = c
@@ -199,62 +140,23 @@ app.frame('/game', async (c) => {
     console.log("playersContractData`, ", playersContractData)
   }
 
-  const games: BigInt[] = []
-  if(frameData) {
-    // const resp = await client.fetchBulkUsers([frameData.fid])
-    const resp = await neynarClient.fetchBulkUsers([710])
-    console.log("fetchBulkUsers resp: ", resp)
-
-    // for each address, get games
-    const users = resp.users
-    if(users && users.length > 0) {
-      const user = users[0]
-      const addresses = user.verified_addresses.eth_addresses;
-      for (const userAddrN of addresses) {
-        const addrGames = await viemClient.readContract({
-          address: GAMES_CONTRACT,
-          abi: [abiGetUserGamesInput],
-          functionName: 'getUserGames',
-          args: [userAddrN]
-        }) as BigInt[];
-        games.push(...addrGames)
-        console.log("user address:  " + userAddrN + " has games: ", addrGames, " games: ", games)
-      }
-    }
-  }
-  const gamesStr = games.map((game) => '#' + game.toString());
-  const gamesStrJoin = gamesStr.join(", ")
-  console.log(gamesStr, gamesStrJoin)
-
-  let invitedPlayersStrJoin = 'none'
+  let playersStrJoin = 'none'
   return c.res({
     image: (
       <div style={{ color: 'white', display: 'flex', flexDirection: 'column', fontSize: 45 }}>
-       <p>{'Invited players: ' + invitedPlayersStrJoin}</p>
-       <p>Make sure players are on Warpcast and ready to play by Joining Game with this frame!</p>
-       <caption>Max is 64 characters in a frame text input</caption>
+       <p>{'Players: ' + playersStrJoin}</p>
       </div>
     ),
     intents: [
       // target (req'd): the app.transaction to call
       // action (opt): next frame
-      <Button.Transaction action='/game' target="/createGameAndInvitePlayers">Invite Players</Button.Transaction>,
-      // <Button.Transaction action='/game' target="/startGame">Start game</Button.Transaction>,
-      <TextInput placeholder="Farcaster name(s)" />,
+      <Button.Transaction action='/game' target="/tVoteOutPlayer">Vote out Player</Button.Transaction>,
+      <TextInput placeholder="Farcaster name of player" />,
+      <Button action='/game'>Refresh</Button>,
       <Button.Reset>Back</Button.Reset>,
     ],
   })
 })
-
-// app.transaction('/newGame', (c) => {
-//   console.log("app.transaction('/newGame'")
-//   return c.contract({ 
-//     abi: [abiNewGame], //contract abi
-//     chainId: fullChainId, 
-//     functionName: 'newGame',
-//     to: GAMES_CONTRACT, // contract addr
-//   }) 
-// })
 
 app.transaction('/tCreateGameAndInvitePlayers', async (c) => {
   console.log("app.transaction /tCreateGameAndInvitePlayers called. c: ", JSON.stringify(c))
@@ -309,7 +211,7 @@ app.transaction('/tCreateGameAndInvitePlayers', async (c) => {
 
 app.frame('/', async (c) => {
   console.log("app.frame / route called. c: ", JSON.stringify(c))
-  const { buttonValue, inputText, status, frameData } = c
+  const { status, frameData } = c
   // const targetAddress = c.address
   let fid = -1;
   let network = -1;
@@ -317,29 +219,7 @@ app.frame('/', async (c) => {
     fid = frameData.fid
     network = frameData.network
   }
-  let myGames;
-  console.log("root route. buttonValue: ", buttonValue)
-  if(buttonValue === "my-games") {
 
-    // const data = await api.validateFrame(, {api_key: 'NEYNAR_FROG_FM'})
-    // console.log("validateFrame Neynar data: ", data);
-    // const result = await client.validateFrame({
-    //   cast_reaction_context: true,
-    //   follow_context: false,
-    //   signer_context: false
-    // })
-    // console.log(result);
-    const viemClient = createPublicClient({
-      chain: baseSepolia,
-      transport: http(),
-    })
-    myGames = await viemClient.readContract({
-      address: GAMES_CONTRACT,
-      abi: abiGamesContract,
-      functionName: 'getUserGames',
-    })
-    console.log("myGames: ", myGames)
-  }
   // const fruit = inputText || buttonValue
   return c.res({
     image: (
@@ -394,12 +274,6 @@ const isEdgeFunction = typeof EdgeFunction !== 'undefined'
 // @ts-ignore
 const isProduction = isEdgeFunction || import.meta.env?.MODE !== 'development'
 devtools(app, isProduction ? { assetsPath: '/.frog' } : { serveStatic })
-// if (process.env.NODE_ENV === 'development') {
-//   devtools(app, { serveStatic })
-// } else {
-//   devtools(app, { assetsPath: '/.frog' }) 
-// }
-
 
 export const GET = handle(app)
 export const POST = handle(app)
