@@ -66,7 +66,7 @@ app.transaction('/getUserAddressHere', (c) => {
 app.frame('/userGames', async (c) => {
   console.log("app.frme /userGames called. c: ", JSON.stringify(c))
   const { transactionId, frameData } = c
-  const games: number[] = []
+  const games: BigInt[] = []
   if(frameData) {
     // const resp = await client.fetchBulkUsers([frameData.fid])
     const resp = await client.fetchBulkUsers([710])
@@ -77,28 +77,38 @@ app.frame('/userGames', async (c) => {
     if(users && users.length > 0) {
       const user = users[0]
       const addresses = user.verified_addresses.eth_addresses;
-      addresses.forEach(async (userAddrN) => {
-
+      for (const userAddrN of addresses) {
         const addrGames = await viemClient.readContract({
           address: GAMES_CONTRACT,
           abi: [abiGetUserGamesInput],
           functionName: 'getUserGames',
           args: [userAddrN]
-        }) as number[];
+        }) as BigInt[];
         games.push(...addrGames)
-        console.log("user address:  " + userAddrN + " has games: ", addrGames)
-      })
+        console.log("user address:  " + userAddrN + " has games: ", addrGames, " games: ", games)
+      }
     }
   }
+  const gamesStr = games.map((game) => '#' + game.toString());
+  const gamesStrJoin = gamesStr.join(", ")
+  console.log(gamesStr, gamesStrJoin)
   // const { network } = frameData
   return c.res({
     image: (
       <div style={{ color: 'white', display: 'flex', fontSize: 60 }}>
-       games: {JSON.stringify(games)}
-       frameData: {JSON.stringify(frameData)}
+       <p> {'games: ' + gamesStrJoin}</p>
+       {/* <p>frameData: {JSON.stringify(frameData)}</p> */}
         {/* Network: {network} */}
       </div>
-    )
+    ),
+    intents: [
+      // target (req'd): the app.transaction to call
+      // action (opt): next frame
+      <Button.Transaction action='/afterNewGame' target="/newGame">New Game</Button.Transaction>,
+      <Button action='/game' >Join Game</Button>,
+      <TextInput placeholder="Join a game. Enter game # and Join Game" />,
+      <Button.Reset>Back</Button.Reset>,
+    ],
   })
 })
 
@@ -226,7 +236,7 @@ app.frame('/', async (c) => {
 
       <Button.Transaction action='/afterNewGame' target="/newGame">New Game</Button.Transaction>,
       // <Button value="new-game">New Game</Button>,
-      <Button value="my-games">My Games</Button>,
+      // <Button value="my-games">My Games</Button>,
       // <Button.Transaction action='/userGames' target='/getUserGames'>User Games</Button.Transaction>,
       <Button action='/userGames' >User Games</Button>,
       // <Button value="website">Website</Button>,
